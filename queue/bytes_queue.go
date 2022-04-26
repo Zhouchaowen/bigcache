@@ -21,17 +21,19 @@ var (
 
 // BytesQueue is a non-thread safe queue type of fifo based on bytes array.
 // For every push operation index of entry is returned. It can be used to read the entry later
+// BytesQueue 是一种基于字节数组的非线程安全队列类型的 fifo。
+// 每次推送操作都会返回 entry 的索引。可用于稍后阅读条目
 type BytesQueue struct {
-	full         bool
-	array        []byte
-	capacity     int
-	maxCapacity  int
-	head         int
-	tail         int
-	count        int
-	rightMargin  int
-	headerBuffer []byte
-	verbose      bool
+	full         bool   // 是否已满
+	array        []byte // 实际存储字节切片
+	capacity     int    // array 容量
+	maxCapacity  int    // 切片最大容量
+	head         int    // head索引位置
+	tail         int    // tail索引位置
+	count        int    // 存储条数
+	rightMargin  int    // 左边距 TODO
+	headerBuffer []byte // 序列化 头复用切片
+	verbose      bool   // 是否开启打印详情
 }
 
 type queueError struct {
@@ -39,6 +41,10 @@ type queueError struct {
 }
 
 // getNeededSize returns the number of bytes an entry of length need in the queue
+// 存储entry条目length需要的字节大小
+// |  1-5 bytes  |  8 bytes  |  8 bytes  |  2 bytes  | n byte | m bytes |
+// | entryLength | timestamp | hashValue | KeyLength |   Key  |  entry  |
+// |     √       |           |           |           |        |         |
 func getNeededSize(length int) int {
 	var header int
 	switch {
@@ -85,16 +91,25 @@ func (q *BytesQueue) Reset() {
 
 // Push copies entry at the end of queue and moves tail pointer. Allocates more space if needed.
 // Returns index for pushed data or error if maximum size queue limit is reached.
+// Push 复制队列末尾的条目并移动尾指针。 如果需要，分配更多空间。 如果达到最大队列限制，则返回推送数据的索引或错误
 func (q *BytesQueue) Push(data []byte) (int, error) {
-	neededSize := getNeededSize(len(data))
+	neededSize := getNeededSize(len(data)) // 条目长度：header+len(data)
 
-	if !q.canInsertAfterTail(neededSize) {
+	// 1.|---head****tail---| √
+	// 2.|---head*******tail| ×
+	// 3.|tail-----head*****| √
+	// 4.|***tail-----head**| √
+	if !q.canInsertAfterTail(neededSize) { // 判断能否在tail标志位后添加条目
+		//   2.|---head*******tail| ×
+		// 2-1.|---head*******tail| √
+		// 2-2.|head**********tail| ×
 		if q.canInsertBeforeHead(neededSize) {
+			// |tail***head-------|
 			q.tail = leftMarginIndex
-		} else if q.capacity+neededSize >= q.maxCapacity && q.maxCapacity > 0 {
+		} else if q.capacity+neededSize >= q.maxCapacity && q.maxCapacity > 0 { // 超过最大容量
 			return -1, &queueError{"Full queue. Maximum size limit reached."}
 		} else {
-			q.allocateAdditionalMemory(neededSize)
+			q.allocateAdditionalMemory(neededSize) // 扩容
 		}
 	}
 
@@ -105,6 +120,7 @@ func (q *BytesQueue) Push(data []byte) (int, error) {
 	return index, nil
 }
 
+// 扩容，原来2倍大的slice然后将旧数据迁移到新slice上
 func (q *BytesQueue) allocateAdditionalMemory(minimum int) {
 	start := time.Now()
 	if q.capacity < minimum {
@@ -139,11 +155,13 @@ func (q *BytesQueue) allocateAdditionalMemory(minimum int) {
 	}
 }
 
+// |  1-5 bytes  |  8 bytes  |  8 bytes  |  2 bytes  | n byte | m bytes |
+// | entryLength | timestamp | hashValue | KeyLength |   Key  |  entry  |
 func (q *BytesQueue) push(data []byte, len int) {
-	headerEntrySize := binary.PutUvarint(q.headerBuffer, uint64(len))
-	q.copy(q.headerBuffer, headerEntrySize)
+	headerEntrySize := binary.PutUvarint(q.headerBuffer, uint64(len)) // 将header长度写到q.headerBuffer中
+	q.copy(q.headerBuffer, headerEntrySize)                           // q.headerBuffer写到q.array
 
-	q.copy(data, len-headerEntrySize)
+	q.copy(data, len-headerEntrySize) // wrapEntry写到q.array
 
 	if q.tail > q.head {
 		q.rightMargin = q.tail
@@ -243,6 +261,7 @@ func (q *BytesQueue) peek(index int) ([]byte, int, error) {
 }
 
 // canInsertAfterTail returns true if it's possible to insert an entry of size of need after the tail of the queue
+// 如果可以在队列尾部之后插入一个需要大小的条目，则返回 true
 func (q *BytesQueue) canInsertAfterTail(need int) bool {
 	if q.full {
 		return false

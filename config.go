@@ -5,8 +5,10 @@ import "time"
 // Config for BigCache
 type Config struct {
 	// Number of cache shards, value must be a power of two
+	// 缓存分片的数量，值必须是 2 的幂
 	Shards int
 	// Time after which entry can be evicted
+	// 可以驱逐条目的时间
 	LifeWindow time.Duration
 	// Interval between removing expired entries (clean up).
 	// If set to <= 0 then no action is performed. Setting to < 1 second is counterproductive — bigcache has a one second resolution.
@@ -17,8 +19,10 @@ type Config struct {
 	// Max size of entry in bytes. Used only to calculate initial size for cache shards.
 	MaxEntrySize int
 	// StatsEnabled if true calculate the number of times a cached resource was requested.
+	// 状态统计
 	StatsEnabled bool
 	// Verbose mode prints information about new memory allocation
+	// 开启详细模式打印有关新内存分配的信息
 	Verbose bool
 	// Hasher used to map between string keys and unsigned 64bit integers, by default fnv64 hashing is used.
 	Hasher Hasher
@@ -29,11 +33,13 @@ type Config struct {
 	// HardMaxCacheSize due to Shards' s additional memory. Every Shard consumes additional memory for map of keys
 	// and statistics (map[uint64]uint32) the size of this map is equal to number of entries in
 	// cache ~ 2×(64+32)×n bits + overhead or map itself.
+	// 限制最大堆内存使用 单位MB
 	HardMaxCacheSize int
 	// OnRemove is a callback fired when the oldest entry is removed because of its expiration time or no space left
 	// for the new entry, or because delete was called.
 	// Default value is nil which means no callback and it prevents from unwrapping the oldest entry.
 	// ignored if OnRemoveWithMetadata is specified.
+	// 删除回调
 	OnRemove func(key string, entry []byte)
 	// OnRemoveWithMetadata is a callback fired when the oldest entry is removed because of its expiration time or no space left
 	// for the new entry, or because delete was called. A structure representing details about that specific entry.
@@ -54,6 +60,7 @@ type Config struct {
 
 // DefaultConfig initializes config with default values.
 // When load for BigCache can be predicted in advance then it is better to use custom config.
+// eviction 条目可被驱逐时间
 func DefaultConfig(eviction time.Duration) Config {
 	return Config{
 		Shards:             1024,
@@ -70,11 +77,13 @@ func DefaultConfig(eviction time.Duration) Config {
 }
 
 // initialShardSize computes initial shard size
+// 计算每个分片条目数量
 func (c Config) initialShardSize() int {
 	return max(c.MaxEntriesInWindow/c.Shards, minimumEntriesInShard)
 }
 
 // maximumShardSizeInBytes computes maximum shard size in bytes
+// 以字节为单位计算最大分片大小
 func (c Config) maximumShardSizeInBytes() int {
 	maxShardSize := 0
 

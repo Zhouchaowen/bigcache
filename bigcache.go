@@ -12,13 +12,16 @@ const (
 // BigCache is fast, concurrent, evicting cache created to keep big number of entries without impact on performance.
 // It keeps entries on heap but omits GC for them. To achieve that, operations take place on byte arrays,
 // therefore entries (de)serialization in front of the cache will be needed in most use cases.
+// BigCache 是一种快速、并发、逐出缓存，旨在保留大量条目而不影响性能。
+// 它在堆上保留条目，但为它们省略 GC。
+// 为了实现这一点，操作发生在字节数组上，因此在大多数用例中都需要缓存前的条目（反）序列化。
 type BigCache struct {
-	shards     []*cacheShard
-	lifeWindow uint64
+	shards     []*cacheShard // hash分片
+	lifeWindow uint64        // 全局过期时间
 	clock      clock
-	hash       Hasher
+	hash       Hasher // hash函数
 	config     Config
-	shardMask  uint64
+	shardMask  uint64 // 最大分片数
 	close      chan struct{}
 }
 
@@ -74,6 +77,7 @@ func newBigCache(config Config, clock clock) (*BigCache, error) {
 	}
 
 	var onRemove func(wrappedEntry []byte, reason RemoveReason)
+	// 设置回调
 	if config.OnRemoveWithMetadata != nil {
 		onRemove = cache.providedOnRemoveWithMetadata
 	} else if config.OnRemove != nil {
@@ -84,11 +88,11 @@ func newBigCache(config Config, clock clock) (*BigCache, error) {
 		onRemove = cache.notProvidedOnRemove
 	}
 
-	for i := 0; i < config.Shards; i++ {
+	for i := 0; i < config.Shards; i++ { // 为每个分配开辟内存和设置配置信息
 		cache.shards[i] = initNewShard(config, onRemove, clock)
 	}
 
-	if config.CleanWindow > 0 {
+	if config.CleanWindow > 0 { // 定时驱逐过期条目
 		go func() {
 			ticker := time.NewTicker(config.CleanWindow)
 			defer ticker.Stop()
@@ -217,7 +221,7 @@ func (c *BigCache) onEvict(oldestEntry []byte, currentTimestamp uint64, evict fu
 }
 
 func (c *BigCache) cleanUp(currentTimestamp uint64) {
-	for _, shard := range c.shards {
+	for _, shard := range c.shards { // 扫描每个分片并清除
 		shard.cleanUp(currentTimestamp)
 	}
 }
