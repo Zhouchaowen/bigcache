@@ -97,14 +97,17 @@ func (q *BytesQueue) Push(data []byte) (int, error) {
 
 	// 1.|---head****tail---| √
 	// 2.|---head*******tail| ×
-	// 3.|tail-----head*****| √
-	// 4.|***tail-----head**| √
-	if !q.canInsertAfterTail(neededSize) { // 判断能否在tail标志位后添加条目
-		//   2.|---head*******tail| ×
-		// 2-1.|---head*******tail| √
-		// 2-2.|head**********tail| ×
+	// 3.|-head*********tail| ×（当tail后的空间不够存储一条条目时）
+	// 4.|tail-----head*****| √
+	// 5.|***tail-----head**| √
+	// 6.|*******tail-head**| ×
+	if !q.canInsertAfterTail(neededSize) { // 判断能否在tail标志位后添加条目（右边界）
+		// 1.|head**********tail| ×
+		// 2.|-head*********tail| ×
+		// 3.|--—-head******tail| √
+		// 4.|*******tail-head**| ×
 		if q.canInsertBeforeHead(neededSize) {
-			// |tail***head-------|
+			// |tail---head*******|
 			q.tail = leftMarginIndex
 		} else if q.capacity+neededSize >= q.maxCapacity && q.maxCapacity > 0 { // 超过最大容量
 			return -1, &queueError{"Full queue. Maximum size limit reached."}
@@ -266,6 +269,10 @@ func (q *BytesQueue) canInsertAfterTail(need int) bool {
 	if q.full {
 		return false
 	}
+
+	// 1.|---head****tail---| √
+	// 2.|---head*******tail| ×
+	// 3.|---head******tail*| ×
 	if q.tail >= q.head {
 		return q.capacity-q.tail >= need
 	}
@@ -273,14 +280,21 @@ func (q *BytesQueue) canInsertAfterTail(need int) bool {
 	// to reserve extra space for a potential empty entry when realloc this queue
 	// 2. still have unused space between tail and head, then we must reserve
 	// at least headerEntrySize bytes so we can put an empty entry
+	// 4.|tail-----head*****| √
+	// 5.|***tail-----head**| √
 	return q.head-q.tail == need || q.head-q.tail >= need+minimumHeaderSize
 }
 
 // canInsertBeforeHead returns true if it's possible to insert an entry of size of need before the head of the queue
 func (q *BytesQueue) canInsertBeforeHead(need int) bool {
+	// |head**********tail| ×
 	if q.full {
 		return false
 	}
+	// |---head*******tail| ×
+	// |---head******tail*| ×
+	// |---head*******tail| √
+	// |-head*********tail| ×
 	if q.tail >= q.head {
 		return q.head-leftMarginIndex == need || q.head-leftMarginIndex >= need+minimumHeaderSize
 	}

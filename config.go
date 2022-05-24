@@ -12,11 +12,14 @@ type Config struct {
 	LifeWindow time.Duration
 	// Interval between removing expired entries (clean up).
 	// If set to <= 0 then no action is performed. Setting to < 1 second is counterproductive — bigcache has a one second resolution.
+	// 定时清除条目的周期
 	CleanWindow time.Duration
 	// Max number of entries in life window. Used only to calculate initial size for cache shards.
 	// When proper value is set then additional memory allocation does not occur.
+	// [用于预分配，不作为限制条件] 初始化时设置的cache中所有shads包含的条目和
 	MaxEntriesInWindow int
 	// Max size of entry in bytes. Used only to calculate initial size for cache shards.
+	// [用于预分配，不作为限制条件] shards中每条条目的最大大小
 	MaxEntrySize int
 	// StatsEnabled if true calculate the number of times a cached resource was requested.
 	// 状态统计
@@ -51,6 +54,7 @@ type Config struct {
 	// Ignored if OnRemove is specified.
 	OnRemoveWithReason func(key string, entry []byte, reason RemoveReason)
 
+	// 设置哪些删除原因将触发对 OnRemoveWithReason 的调用。
 	onRemoveFilter int
 
 	// Logger is a logging interface and used in combination with `Verbose`
@@ -96,6 +100,7 @@ func (c Config) maximumShardSizeInBytes() int {
 
 // OnRemoveFilterSet sets which remove reasons will trigger a call to OnRemoveWithReason.
 // Filtering out reasons prevents bigcache from unwrapping them, which saves cpu.
+// OnRemoveFilterSet 设置哪些删除原因将触发对 OnRemoveWithReason 的调用。过滤掉原因可以防止 bigcache 解包它们，从而节省 cpu。
 func (c Config) OnRemoveFilterSet(reasons ...RemoveReason) Config {
 	c.onRemoveFilter = 0
 	for i := range reasons {

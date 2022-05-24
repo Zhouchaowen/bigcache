@@ -126,7 +126,7 @@ func (s *cacheShard) set(key string, hashedKey uint64, entry []byte) error {
 
 	if previousIndex := s.hashmap[hashedKey]; previousIndex != 0 { // 重置条目为0并删除s.hashmap的索引
 		if previousEntry, err := s.entries.Get(int(previousIndex)); err == nil {
-			resetKeyFromEntry(previousEntry) // 这个用到了slice的特性，切片持有源数据地址，改切片会导致改源数组
+			resetKeyFromEntry(previousEntry) // 这个用到了slice的特性，切片持有源数据地址，修改切片会导致改源数组
 			//remove hashkey
 			delete(s.hashmap, hashedKey)
 		}

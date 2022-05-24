@@ -146,6 +146,8 @@ func (c *BigCache) Set(key string, entry []byte) error {
 // Append appends entry under the key if key exists, otherwise
 // it will set the key (same behaviour as Set()). With Append() you can
 // concatenate multiple entries under the same key in an lock optimized way.
+// 如果键存在，Append 在键下追加条目，否则它将设置键（与 Set() 行为相同）。
+// 使用 Append()，您可以以锁定优化的方式连接同一个键下的多个条目。
 func (c *BigCache) Append(key string, entry []byte) error {
 	hashedKey := c.hash.Sum64(key)
 	shard := c.getShard(hashedKey)
